@@ -1,104 +1,106 @@
 <!doctype html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0b1020" />
-    <title>S&amp;P 500 고점 대비 하락률</title>
-    <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="./icons/icon.svg" />
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <main class="wrap">
-      <header class="header">
-        <div class="title">
-          <h1>S&amp;P 500</h1>
-          <p class="sub">고점(ATH) 대비 얼마나 하락했는지</p>
-        </div>
-        <div class="actions">
-          <button id="refreshBtn" class="btn" type="button">새로고침</button>
-          <button id="installBtn" class="btn btnPrimary" type="button" hidden>설치</button>
-        </div>
-      </header>
 
-      <section class="card">
-        <div class="grid">
-          <div class="gauge">
-            <svg id="gaugeSvg" viewBox="0 0 320 200" aria-label="하락률 게이지" role="img">
-              <defs>
-                <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stop-color="#2dd4bf" />
-                  <stop offset="45%" stop-color="#fbbf24" />
-                  <stop offset="75%" stop-color="#fb7185" />
-                  <stop offset="100%" stop-color="#ef4444" />
-                </linearGradient>
-              </defs>
-              <path id="gaugeTrack" class="track" d="M 40 160 A 120 120 0 0 1 280 160" />
-              <path id="gaugeArc" class="arc" d="M 40 160 A 120 120 0 0 1 280 160" />
-              <g id="crisisMarks" class="marks"></g>
-              <g id="gaugeNeedle" class="needle" transform="translate(160 160)">
-                <line x1="0" y1="0" x2="0" y2="-92" />
-                <circle cx="0" cy="0" r="7" />
-              </g>
-              <text id="gaugeValue" class="value" x="160" y="128" text-anchor="middle">--%</text>
-              <text id="gaugeLabel" class="label" x="160" y="150" text-anchor="middle">from ATH</text>
-              <text class="tick" x="40" y="178" text-anchor="start">0%</text>
-              <text id="gaugeMaxLabel" class="tick" x="280" y="178" text-anchor="end">100%</text>
-            </svg>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>노른자 소프트 : S&amp;P 500 고점 대비 하락률</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icons/icon.svg" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <main class="wrap">
+    <header class="header">
+      <div class="title">
+        <h1>S&amp;P 500</h1>
+        <p class="sub">고점(ATH) 대비 얼마나 하락했는지 알 수 있습니다.</p>
+      </div>
+      <div class="actions">
+        <button id="refreshBtn" class="btn" type="button">새로고침</button>
+        <button id="installBtn" class="btn btnPrimary" type="button" hidden>설치</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="grid">
+        <div class="gauge">
+          <svg id="gaugeSvg" viewBox="0 0 320 200" aria-label="하락률 게이지" role="img">
+            <defs>
+              <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#2dd4bf" />
+                <stop offset="45%" stop-color="#fbbf24" />
+                <stop offset="75%" stop-color="#fb7185" />
+                <stop offset="100%" stop-color="#ef4444" />
+              </linearGradient>
+            </defs>
+            <path id="gaugeTrack" class="track" d="M 40 160 A 120 120 0 0 1 280 160" />
+            <path id="gaugeArc" class="arc" d="M 40 160 A 120 120 0 0 1 280 160" />
+            <g id="crisisMarks" class="marks"></g>
+            <g id="gaugeNeedle" class="needle" transform="translate(160 160)">
+              <line x1="0" y1="0" x2="0" y2="-92" />
+              <circle cx="0" cy="0" r="7" />
+            </g>
+            <text id="gaugeValue" class="value" x="160" y="128" text-anchor="middle">--%</text>
+            <text id="gaugeLabel" class="label" x="160" y="150" text-anchor="middle">from ATH</text>
+            <text class="tick" x="40" y="178" text-anchor="start">0%</text>
+            <text id="gaugeMaxLabel" class="tick" x="280" y="178" text-anchor="end">100%</text>
+          </svg>
+        </div>
+
+        <div class="stats" aria-live="polite">
+          <div class="kpi">
+            <div class="kpiLabel">하락률</div>
+            <div id="dropPct" class="kpiValue">--%</div>
+            <div id="dropPts" class="kpiHint">-- pt</div>
           </div>
 
-          <div class="stats" aria-live="polite">
-            <div class="kpi">
-              <div class="kpiLabel">하락률</div>
-              <div id="dropPct" class="kpiValue">--%</div>
-              <div id="dropPts" class="kpiHint">-- pt</div>
+          <div class="rows">
+            <div class="row">
+              <div class="rowLabel">현재</div>
+              <div class="rowValue" id="currentVal">--</div>
             </div>
-
-            <div class="rows">
-              <div class="row">
-                <div class="rowLabel">현재</div>
-                <div class="rowValue" id="currentVal">--</div>
-              </div>
-              <div class="row">
-                <div class="rowLabel">고점(ATH)</div>
-                <div class="rowValue" id="athVal">--</div>
-              </div>
-              <div class="row">
-                <div class="rowLabel">데이터 기준일</div>
-                <div class="rowValue" id="asofVal">--</div>
-              </div>
-              <div class="row">
-                <div class="rowLabel">업데이트</div>
-                <div class="rowValue" id="updatedVal">--</div>
-              </div>
+            <div class="row">
+              <div class="rowLabel">고점(ATH)</div>
+              <div class="rowValue" id="athVal">--</div>
             </div>
-
-            <details class="details">
-              <summary>데이터 소스</summary>
-              <p class="muted">
-                기본 소스: Yahoo Finance (^GSPC 차트 API). 브라우저에서 CORS가 막히면 공개 프록시를 통해 자동
-                재시도합니다.
-              </p>
-            </details>
-
-            <div class="crises">
-              <div class="crisesTitle">주요 금융 위기 하락률</div>
-              <div id="crisisList" class="crisisList" aria-label="금융 위기 하락률 목록"></div>
+            <div class="row">
+              <div class="rowLabel">데이터 기준일</div>
+              <div class="rowValue" id="asofVal">--</div>
+            </div>
+            <div class="row">
+              <div class="rowLabel">업데이트</div>
+              <div class="rowValue" id="updatedVal">--</div>
             </div>
           </div>
+
+          <details class="details">
+            <summary>데이터 소스</summary>
+            <p class="muted">
+              기본 소스: Yahoo Finance (^GSPC 차트 API). 브라우저에서 CORS가 막히면 공개 프록시를 통해 자동
+              재시도합니다.
+            </p>
+          </details>
+
+          <div class="crises">
+            <div class="crisesTitle">주요 금융 위기 하락률</div>
+            <div id="crisisList" class="crisisList" aria-label="금융 위기 하락률 목록"></div>
+          </div>
         </div>
+      </div>
 
-        <div id="status" class="status muted"></div>
-      </section>
+      <div id="status" class="status muted"></div>
+    </section>
 
-      <footer class="footer muted">
-        <span>오프라인이면 마지막 값(캐시)을 표시합니다.</span>
-      </footer>
-    </main>
+    <footer class="footer muted">
+      <span>오프라인이면 마지막 값(캐시)을 표시합니다.</span>
+    </footer>
+  </main>
 
-    <script type="module" src="./app.js"></script>
-  </body>
+  <script type="module" src="./app.js"></script>
+</body>
+
 </html>
-
