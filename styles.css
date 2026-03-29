@@ -366,6 +366,25 @@ body {
   gap: 8px;
 }
 
+.etfLink {
+  text-decoration: none;
+  color: inherit;
+}
+
+.etfLink:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.etfLink:active {
+  transform: translateY(1px);
+}
+
+.etfLink:focus-visible {
+  outline: 2px solid rgba(96, 165, 250, 0.7);
+  outline-offset: 2px;
+}
+
 .etfTop {
   display: flex;
   align-items: baseline;

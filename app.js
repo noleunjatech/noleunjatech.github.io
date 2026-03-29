@@ -93,6 +93,14 @@ const ETFS = [
 ];
 
 const ETF_LABEL_BY_SYMBOL = new Map(ETFS.map((e) => [String(e.symbol).toUpperCase(), e.label]));
+const ETF_GOOGLE_FINANCE_ID_BY_SYMBOL = new Map([
+  ["SPY", "SPY:NYSEARCA"],
+  ["VOO", "VOO:NYSEARCA"],
+  ["SPYM", "SPYM:NYSEARCA"],
+  ["379800.KS", "379800:KRX"],
+  ["360750.KS", "360750:KRX"],
+  ["360200.KS", "360200:KRX"],
+]);
 
 function setStatus(message) {
   ui.status.textContent = message ?? "";
@@ -160,6 +168,21 @@ function fmtSignedPercent(value, digits = 2) {
   if (!Number.isFinite(value)) return "--%";
   const sign = value > 0 ? "+" : value < 0 ? "-" : "";
   return `${sign}${fmt.number(Math.abs(value), digits)}%`;
+}
+
+function googleFinanceUrlForEtfSymbol(symbol) {
+  const sym = String(symbol || "").toUpperCase();
+  const id = ETF_GOOGLE_FINANCE_ID_BY_SYMBOL.get(sym);
+  if (id) return `https://www.google.com/finance/quote/${encodeURIComponent(id)}?hl=ko`;
+
+  // Best-effort fallback:
+  // - US ETFs usually on NYSEARCA
+  // - Korean ETFs use numeric code on KRX
+  const ks = sym.endsWith(".KS") ? sym.slice(0, -3) : null;
+  if (ks && /^\d+$/.test(ks)) return `https://www.google.com/finance/quote/${encodeURIComponent(`${ks}:KRX`)}?hl=ko`;
+  if (sym) return `https://www.google.com/finance/quote/${encodeURIComponent(`${sym}:NYSEARCA`)}?hl=ko`;
+
+  return "https://www.google.com/finance/?hl=ko";
 }
 
 function renderArc(arcEl, normalized) {
@@ -879,9 +902,11 @@ function renderEtfQuotes(snapshot, { fromCache } = { fromCache: false }) {
       if (fromCache) titleParts.push("캐시");
       const title = titleParts.join(" · ");
       const head = it.label || it.symbol;
+      const sym = String(it.symbol || "").trim();
+      const href = googleFinanceUrlForEtfSymbol(sym);
 
       return `
-        <div class="etfCard" title="${title}">
+        <a class="etfCard etfLink" href="${href}" target="_blank" rel="noopener noreferrer" title="${title}">
           <div class="etfTop">
             <div class="etfSymbol">${escapeHtml(head)}</div>
             <div class="etfName">${escapeHtml(it.symbol)}</div>
@@ -893,7 +918,7 @@ function renderEtfQuotes(snapshot, { fromCache } = { fromCache: false }) {
             <div class="chg">${chg}</div>
             <div class="pct">${pct}</div>
           </div>
-        </div>
+        </a>
       `;
     })
     .join("");
