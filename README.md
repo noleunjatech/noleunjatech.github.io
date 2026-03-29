@@ -23,3 +23,13 @@ npx serve -l 5173 .
 
 - 기본: Yahoo Finance 차트 API (`^GSPC`)
 - 브라우저에서 CORS가 막히면 공개 프록시(`r.jina.ai`)로 자동 재시도
+
+## GitHub Pages 배포
+
+이 저장소에는 GitHub Pages 배포용 워크플로우가 포함되어 있습니다: `.github/workflows/pages.yml`
+
+1) GitHub에서 해당 저장소 → Settings → Pages
+2) Source를 **GitHub Actions**로 설정
+3) `main` 브랜치에 push 하면 자동으로 배포됩니다.
+
+참고: 원격 저장소에 push 권한이 없으면(403) 먼저 Collaborator 권한(Write 이상)을 받아야 합니다.
