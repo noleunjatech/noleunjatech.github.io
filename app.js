@@ -1,6 +1,10 @@
 const SNAPSHOT_KEY = "spx_drawdown_v1";
 const CRISIS_KEY = "spx_crisis_drawdowns_v1";
 const FNG_KEY = "cnn_fng_v1";
+const ETF_KEY = "spx_etf_quotes_v1";
+const ETF_RL_UNTIL_KEY = "spx_etf_rl_until_v1";
+
+const AUTO_REFRESH_MAX_AGE_MS = 1000 * 60 * 10;
 
 const ui = {
   refreshBtn: document.getElementById("refreshBtn"),
@@ -8,6 +12,8 @@ const ui = {
   status: document.getElementById("status"),
 
   avg10yBadge: document.getElementById("avg10yBadge"),
+  etfList: document.getElementById("etfList"),
+  etfStatus: document.getElementById("etfStatus"),
   dropPct: document.getElementById("dropPct"),
   dropPts: document.getElementById("dropPts"),
   currentVal: document.getElementById("currentVal"),
@@ -77,8 +83,24 @@ const CRISES = [
 const CRISIS_COLORS = ["#60a5fa", "#34d399", "#fbbf24", "#fb7185", "#a78bfa"];
 const CRISIS_COLOR_BY_ID = new Map(CRISES.map((c, i) => [c.id, CRISIS_COLORS[i % CRISIS_COLORS.length]]));
 
+const ETFS = [
+  { symbol: "SPY", label: "SPY" },
+  { symbol: "VOO", label: "VOO" },
+  { symbol: "SPYM", label: "SPYM" },
+  { symbol: "379800.KS", label: "KODEX 미국S&P500" },
+  { symbol: "360750.KS", label: "TIGER 미국S&P500" },
+  { symbol: "360200.KS", label: "ACE 미국S&P500" },
+];
+
+const ETF_LABEL_BY_SYMBOL = new Map(ETFS.map((e) => [String(e.symbol).toUpperCase(), e.label]));
+
 function setStatus(message) {
   ui.status.textContent = message ?? "";
+}
+
+function setEtfStatus(message) {
+  if (!ui.etfStatus) return;
+  ui.etfStatus.textContent = message ?? "";
 }
 
 function clamp(n, min, max) {
@@ -103,6 +125,43 @@ function getCache(key) {
   }
 }
 
+function isCacheFresh(key, maxAgeMs, { validate } = {}) {
+  const cached = getCache(key);
+  const updatedAt = cached?.updatedAt;
+  if (!Number.isFinite(updatedAt)) return false;
+  if (typeof validate === "function" && !validate(cached)) return false;
+  return Date.now() - updatedAt < maxAgeMs;
+}
+
+function requiredEtfSymbolsSet() {
+  return new Set(ETFS.map((e) => String(e.symbol).toUpperCase()));
+}
+
+function etfSnapshotHasAllSymbols(snapshot) {
+  const req = requiredEtfSymbolsSet();
+  const symbols = Array.isArray(snapshot?.symbols) ? snapshot.symbols : snapshot?.items?.map((i) => i?.symbol);
+  if (!Array.isArray(symbols) || symbols.length === 0) return false;
+  for (const s of symbols) req.delete(String(s ?? "").toUpperCase());
+  return req.size === 0;
+}
+
+function signClass(value) {
+  if (!Number.isFinite(value) || Math.abs(value) < 1e-12) return "isFlat";
+  return value > 0 ? "isUp" : "isDown";
+}
+
+function fmtSigned(value, digits = 2) {
+  if (!Number.isFinite(value)) return "--";
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${fmt.number(Math.abs(value), digits)}`;
+}
+
+function fmtSignedPercent(value, digits = 2) {
+  if (!Number.isFinite(value)) return "--%";
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${fmt.number(Math.abs(value), digits)}%`;
+}
+
 function renderArc(arcEl, normalized) {
   if (!arcEl) return;
   const n = clamp(normalized, 0, 1);
@@ -125,7 +184,81 @@ function extractJsonText(maybeWrappedText) {
 
   const first = s.indexOf("{");
   const last = s.lastIndexOf("}");
-  if (first !== -1 && last !== -1 && last > first) return s.slice(first, last + 1);
+  if (first !== -1 && last !== -1 && last > first) {
+    const naive = s.slice(first, last + 1);
+    try {
+      JSON.parse(naive);
+      return naive;
+    } catch {
+      // fall through to robust scan
+    }
+  }
+
+  const starts = [];
+  for (let i = 0; i < s.length; i += 1) {
+    const ch = s[i];
+    if (ch === "{" || ch === "[") starts.push(i);
+  }
+
+  const tryExtractBalanced = (startIdx) => {
+    const stack = [];
+    let inStr = false;
+    let esc = false;
+
+    const open = s[startIdx];
+    if (open !== "{" && open !== "[") return null;
+    stack.push(open);
+
+    for (let i = startIdx + 1; i < s.length; i += 1) {
+      const ch = s[i];
+
+      if (inStr) {
+        if (esc) {
+          esc = false;
+          continue;
+        }
+        if (ch === "\\") {
+          esc = true;
+          continue;
+        }
+        if (ch === '"') {
+          inStr = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inStr = true;
+        continue;
+      }
+
+      if (ch === "{" || ch === "[") {
+        stack.push(ch);
+        continue;
+      }
+
+      if (ch === "}" || ch === "]") {
+        const top = stack[stack.length - 1];
+        if ((ch === "}" && top !== "{") || (ch === "]" && top !== "[")) return null;
+        stack.pop();
+        if (stack.length === 0) return s.slice(startIdx, i + 1);
+      }
+    }
+
+    return null;
+  };
+
+  for (const startIdx of starts) {
+    const candidate = tryExtractBalanced(startIdx);
+    if (!candidate) continue;
+    try {
+      JSON.parse(candidate);
+      return candidate;
+    } catch {
+      // keep scanning
+    }
+  }
+
   return s;
 }
 
@@ -342,7 +475,14 @@ async function fetchText(url, { timeoutMs = 12000 } = {}) {
       signal: controller.signal,
       headers: { Accept: "application/json,text/plain,*/*" },
     });
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    if (!res.ok) {
+      const err = new Error(`${res.status} ${res.statusText}`);
+      err.status = res.status;
+      const ra = res.headers?.get?.("retry-after");
+      const raNum = ra != null ? Number(ra) : NaN;
+      if (Number.isFinite(raNum)) err.retryAfterSec = raNum;
+      throw err;
+    }
     return await res.text();
   } finally {
     clearTimeout(timer);
@@ -402,6 +542,190 @@ async function loadCrisis(crisis) {
     }
   }
   throw lastErr ?? new Error(`위기 데이터 로드 실패: ${crisis.id}`);
+}
+
+async function loadEtfQuotes(symbols) {
+  const list = Array.isArray(symbols) && symbols.length ? symbols : ETFS.map((e) => e.symbol);
+  const joined = encodeURIComponent(list.join(","));
+
+  const base = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${joined}`;
+  const alt = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${joined}`;
+  const jina = `https://r.jina.ai/http://${base.replace(/^https?:\/\//, "")}`;
+  const jinaAlt = `https://r.jina.ai/http://${alt.replace(/^https?:\/\//, "")}`;
+
+  const candidates = [base, alt, jina, jinaAlt];
+  let lastErr;
+  for (const url of candidates) {
+    try {
+      const text = await fetchText(url, { timeoutMs: 12000 });
+      const raw = extractJsonText(text);
+      const json = JSON.parse(raw);
+      const results = json?.quoteResponse?.result;
+      if (!Array.isArray(results) || results.length === 0) throw new Error("Yahoo Finance quote 데이터가 비어 있습니다.");
+
+      const bySymbol = new Map(results.map((r) => [String(r.symbol || "").toUpperCase(), r]));
+      const items = list.map((sym) => {
+        const r = bySymbol.get(String(sym).toUpperCase()) ?? null;
+        const label = ETF_LABEL_BY_SYMBOL.get(String(sym).toUpperCase()) ?? sym;
+        const price = r?.regularMarketPrice;
+        const chg = r?.regularMarketChange;
+        const pct = r?.regularMarketChangePercent;
+        const currency = r?.currency || "USD";
+        const name = r?.shortName || r?.longName || sym;
+        const time = r?.regularMarketTime;
+        const asOfMs = Number.isFinite(time) ? time * 1000 : null;
+        return {
+          symbol: sym,
+          label,
+          name,
+          currency,
+          price: Number.isFinite(price) ? price : null,
+          change: Number.isFinite(chg) ? chg : null,
+          changePct: Number.isFinite(pct) ? pct : null,
+          asOfMs,
+        };
+      });
+
+      const missing = items
+        .filter((it) => it.price == null || it.change == null || it.changePct == null)
+        .map((it) => it.symbol);
+
+      if (missing.length) {
+        const viaChart = await loadEtfQuotesViaChart(missing);
+        const by = new Map(viaChart.items.map((it) => [String(it.symbol).toUpperCase(), it]));
+        for (const it of items) {
+          const repl = by.get(String(it.symbol).toUpperCase());
+          if (!repl) continue;
+          if (it.price == null) it.price = repl.price;
+          if (it.change == null) it.change = repl.change;
+          if (it.changePct == null) it.changePct = repl.changePct;
+          if (it.asOfMs == null) it.asOfMs = repl.asOfMs;
+          if (!it.name || it.name === it.symbol) it.name = repl.name;
+          if (!it.currency) it.currency = repl.currency;
+          if (!it.label || it.label === it.symbol) it.label = repl.label;
+        }
+      }
+
+      return { source: url, items };
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+
+  try {
+    const fallback = await loadEtfQuotesViaChart(list);
+    return { source: fallback.source, items: fallback.items };
+  } catch {
+    throw lastErr ?? new Error("ETF 데이터를 불러오지 못했습니다.");
+  }
+}
+
+function lastFinite(values) {
+  if (!Array.isArray(values)) return null;
+  for (let i = values.length - 1; i >= 0; i -= 1) {
+    const v = values[i];
+    if (Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+function lastTwoFinite(values) {
+  if (!Array.isArray(values)) return { last: null, prev: null };
+  let last = null;
+  let prev = null;
+  for (let i = values.length - 1; i >= 0; i -= 1) {
+    const v = values[i];
+    if (!Number.isFinite(v)) continue;
+    if (last == null) {
+      last = v;
+      continue;
+    }
+    prev = v;
+    break;
+  }
+  return { last, prev };
+}
+
+function parseEtfFromYahooChart(text, fallbackSymbol) {
+  const raw = extractJsonText(text);
+  const json = JSON.parse(raw);
+
+  const error = json?.chart?.error;
+  if (error) throw new Error(`Yahoo Finance 오류: ${error.description || error.code || "unknown"}`);
+
+  const result = json?.chart?.result?.[0];
+  if (!result) throw new Error("Yahoo Finance 차트 데이터가 비어 있습니다.");
+
+  const meta = result?.meta ?? {};
+  const symbol = String(meta.symbol || fallbackSymbol || "--");
+  const currency = String(meta.currency || "USD");
+  const name = String(meta.shortName || meta.longName || symbol);
+  const label = ETF_LABEL_BY_SYMBOL.get(String(fallbackSymbol || symbol).toUpperCase()) ?? symbol;
+
+  const quote = result?.indicators?.quote?.[0] ?? {};
+  const closes = quote.close ?? [];
+  const { last: lastClose, prev: prevCloseFromSeries } = lastTwoFinite(closes);
+
+  const metaPrice = meta?.regularMarketPrice;
+  const metaPrev = meta?.previousClose ?? meta?.chartPreviousClose;
+
+  const price = Number.isFinite(metaPrice) ? metaPrice : lastClose;
+  const prev = Number.isFinite(metaPrev) ? metaPrev : prevCloseFromSeries;
+
+  const change = Number.isFinite(price) && Number.isFinite(prev) ? price - prev : null;
+  const changePct = Number.isFinite(change) && Number.isFinite(prev) && prev !== 0 ? (change / prev) * 100 : null;
+
+  const t = meta?.regularMarketTime;
+  const ts = lastFinite(result?.timestamp ?? []);
+  const asOfMs = Number.isFinite(t) ? t * 1000 : Number.isFinite(ts) ? ts * 1000 : null;
+
+  return {
+    symbol,
+    label,
+    name,
+    currency,
+    price: Number.isFinite(price) ? price : null,
+    change: Number.isFinite(change) ? change : null,
+    changePct: Number.isFinite(changePct) ? changePct : null,
+    asOfMs,
+  };
+}
+
+async function loadEtfQuotesViaChart(symbols) {
+  const list = Array.isArray(symbols) && symbols.length ? symbols : ETFS.map((e) => e.symbol);
+  const items = [];
+  let usedSource = "chart";
+
+  for (const sym of list) {
+    const s = encodeURIComponent(sym);
+    const base = `https://query1.finance.yahoo.com/v8/finance/chart/${s}?range=5d&interval=1d&includeAdjustedClose=true`;
+    const alt = `https://query2.finance.yahoo.com/v8/finance/chart/${s}?range=5d&interval=1d&includeAdjustedClose=true`;
+    const jina = `https://r.jina.ai/http://${base.replace(/^https?:\/\//, "")}`;
+    const jinaAlt = `https://r.jina.ai/http://${alt.replace(/^https?:\/\//, "")}`;
+
+    const candidates = [base, alt, jina, jinaAlt];
+    let lastErr;
+    for (const url of candidates) {
+      try {
+        const text = await fetchText(url, { timeoutMs: 12000 });
+        const item = parseEtfFromYahooChart(text, sym);
+        items.push({ ...item, symbol: sym, label: item.label ?? (ETF_LABEL_BY_SYMBOL.get(String(sym).toUpperCase()) ?? sym) });
+        usedSource = url;
+        break;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    if (!items.find((it) => it.symbol === sym)) {
+      throw lastErr ?? new Error(`ETF 차트 로드 실패: ${sym}`);
+    }
+
+    // small spacing to reduce rate-limit bursts
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => setTimeout(r, 150));
+  }
+
+  return { source: usedSource, items };
 }
 
 function crisisColorForId(id) {
@@ -534,6 +858,54 @@ function renderSpxSnapshot(snapshot, { fromCache } = { fromCache: false }) {
   renderArc(ui.spxGauge.arc, normalized);
   renderNeedle(ui.spxGauge.needle, normalized);
   ui.spxGauge.value.textContent = fmt.drawdownPercent(computed.dropPct, 2);
+}
+
+function renderEtfQuotes(snapshot, { fromCache } = { fromCache: false }) {
+  if (!ui.etfList) return;
+
+  if (!snapshot?.items?.length) {
+    ui.etfList.innerHTML = `<div class="muted">불러오는 중…</div>`;
+    return;
+  }
+
+  ui.etfList.innerHTML = snapshot.items
+    .map((it) => {
+      const cls = signClass(it.change);
+      const price = it.price == null ? "--" : fmt.number(it.price, 2);
+      const chg = it.change == null ? "--" : fmtSigned(it.change, 2);
+      const pct = it.changePct == null ? "--%" : fmtSignedPercent(it.changePct, 2);
+      const titleParts = [];
+      if (it.asOfMs) titleParts.push(`기준: ${fmt.dt(it.asOfMs)}`);
+      if (fromCache) titleParts.push("캐시");
+      const title = titleParts.join(" · ");
+      const head = it.label || it.symbol;
+
+      return `
+        <div class="etfCard" title="${title}">
+          <div class="etfTop">
+            <div class="etfSymbol">${escapeHtml(head)}</div>
+            <div class="etfName">${escapeHtml(it.symbol)}</div>
+          </div>
+          <div class="etfPrice">
+            ${price} <span class="etfCurrency">${escapeHtml(it.currency)}</span>
+          </div>
+          <div class="etfChange ${cls}">
+            <div class="chg">${chg}</div>
+            <div class="pct">${pct}</div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function fearGreedLabelKo(rating) {
@@ -673,14 +1045,75 @@ async function refreshFearGreed() {
   renderFearGreed(snapshot, { fromCache: false });
 }
 
-async function refreshAll() {
+async function refreshEtfs() {
+  setEtfStatus("");
+  const cached = getCache(ETF_KEY);
+  if (cached?.items?.length) renderEtfQuotes(cached, { fromCache: true });
+  else renderEtfQuotes(null);
+
+  const rlUntil = getCache(ETF_RL_UNTIL_KEY)?.untilMs;
+  if (Number.isFinite(rlUntil) && Date.now() < rlUntil) {
+    const waitSec = Math.max(1, Math.ceil((rlUntil - Date.now()) / 1000));
+    setEtfStatus(`요청이 너무 많습니다(429). ${waitSec}초 후 다시 시도하세요.`);
+    return;
+  }
+
+  try {
+    const symbols = ETFS.map((e) => e.symbol);
+    const data = await loadEtfQuotes(symbols);
+    const snapshot = {
+      items: data.items,
+      symbols,
+      source: data.source,
+      updatedAt: Date.now(),
+    };
+    setCache(ETF_KEY, snapshot);
+    renderEtfQuotes(snapshot, { fromCache: false });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const status = e?.status;
+    const retryAfterSec = e?.retryAfterSec;
+
+    if (status === 429) {
+      const tail = Number.isFinite(retryAfterSec) ? ` (${Math.max(1, Math.round(retryAfterSec))}초 후 재시도)` : "";
+      setEtfStatus(`요청이 너무 많습니다(429). 잠시 후 다시 시도하세요.${tail}`);
+      const untilMs = Date.now() + (Number.isFinite(retryAfterSec) ? Math.max(1, retryAfterSec) * 1000 : 60 * 1000);
+      setCache(ETF_RL_UNTIL_KEY, { untilMs });
+      if (cached?.items?.length) renderEtfQuotes(cached, { fromCache: true });
+      return;
+    }
+
+    setEtfStatus(`ETF 불러오기 실패: ${msg}`);
+    if (cached?.items?.length) renderEtfQuotes(cached, { fromCache: true });
+    throw e;
+  }
+}
+
+async function refreshAll({ force = false } = {}) {
+  const taskFns = [];
+
+  if (force || !isCacheFresh(SNAPSHOT_KEY, AUTO_REFRESH_MAX_AGE_MS)) taskFns.push(refreshSpxSnapshot);
+  if (force || !isCacheFresh(ETF_KEY, AUTO_REFRESH_MAX_AGE_MS, { validate: etfSnapshotHasAllSymbols })) taskFns.push(refreshEtfs);
+  if (force || !isCacheFresh(FNG_KEY, AUTO_REFRESH_MAX_AGE_MS)) taskFns.push(refreshFearGreed);
+
+  if (taskFns.length === 0) {
+    setStatus("");
+    return;
+  }
+
   setStatus("데이터 불러오는 중…");
   ui.refreshBtn.disabled = true;
 
-  const results = await Promise.allSettled([refreshSpxSnapshot(), refreshFearGreed()]);
-  const errors = results
-    .filter((r) => r.status === "rejected")
-    .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)));
+  const errors = [];
+  for (const fn of taskFns) {
+    try {
+      // Avoid hitting Yahoo endpoints simultaneously (429 mitigation)
+      // eslint-disable-next-line no-await-in-loop
+      await fn();
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   setStatus(errors.length ? `실패: ${errors.join(" | ")}` : "");
   ui.refreshBtn.disabled = false;
@@ -719,11 +1152,18 @@ async function init() {
     renderNeedle(ui.fngGauge.needle, 0);
   }
 
+  const cachedEtfs = getCache(ETF_KEY);
+  if (cachedEtfs?.items?.length && etfSnapshotHasAllSymbols(cachedEtfs)) {
+    renderEtfQuotes(cachedEtfs, { fromCache: true });
+  } else {
+    renderEtfQuotes(null);
+  }
+
   ui.refreshBtn.addEventListener("click", async () => {
-    await refreshAll();
+    await refreshAll({ force: true });
   });
 
-  await Promise.all([refreshAll(), refreshCrises()]);
+  await Promise.all([refreshAll({ force: false }), refreshCrises()]);
 }
 
 init();

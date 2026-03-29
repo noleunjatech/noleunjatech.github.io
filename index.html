@@ -180,6 +180,19 @@
       </div>
     </section>
 
+    <section class="card">
+      <div class="cardHeader">
+        <h2 class="cardTitle">S&amp;P 500 ETF</h2>
+        <div class="cardBadge" aria-label="가격 및 등락">가격 · 등락</div>
+      </div>
+      <div id="etfList" class="etfGrid" aria-live="polite" aria-label="S&P 500 ETF 가격 및 등락"></div>
+      <div id="etfStatus" class="miniStatus muted" aria-live="polite"></div>
+      <details class="details">
+        <summary>데이터 소스</summary>
+        <p class="muted">Yahoo Finance Quote/Chart API (SPY, VOO, SPYM, 379800.KS, 360750.KS, 360200.KS). CORS가 막히면 공개 프록시로 자동 재시도합니다.</p>
+      </details>
+    </section>
+
     <div id="status" class="status muted"></div>
 
     <footer class="footer muted">
