@@ -1,0 +1,309 @@
+:root {
+  --bg: #0b1020;
+  --card: rgba(255, 255, 255, 0.06);
+  --cardBorder: rgba(255, 255, 255, 0.12);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.65);
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  --accent: #60a5fa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Noto Sans,
+    Apple SD Gothic Neo,
+    "Malgun Gothic",
+    Arial,
+    "Apple Color Emoji",
+    "Segoe UI Emoji";
+  color: var(--text);
+  background:
+    radial-gradient(1200px 600px at 10% 0%, rgba(96, 165, 250, 0.22), transparent 60%),
+    radial-gradient(900px 550px at 90% 10%, rgba(244, 63, 94, 0.18), transparent 55%),
+    linear-gradient(180deg, #0b1020 0%, #070a14 100%);
+}
+
+.wrap {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px 16px 36px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.title h1 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.sub {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  appearance: none;
+  border: 1px solid var(--cardBorder);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
+}
+
+.btn:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.btnPrimary {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(96, 165, 250, 0.12);
+}
+
+.card {
+  border: 1px solid var(--cardBorder);
+  background: var(--card);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 18px;
+  align-items: center;
+}
+
+.gauge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 0 0;
+}
+
+#gaugeSvg {
+  width: min(420px, 100%);
+  height: auto;
+}
+
+.track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 18;
+  stroke-linecap: round;
+}
+
+.arc {
+  fill: none;
+  stroke: url(#gaugeGrad);
+  stroke-width: 18;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.needle line {
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.needle circle {
+  fill: rgba(255, 255, 255, 0.92);
+}
+
+.value {
+  font-size: 28px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  fill: rgba(255, 255, 255, 0.92);
+}
+
+.label {
+  font-size: 12px;
+  fill: rgba(255, 255, 255, 0.68);
+}
+
+.tick {
+  font-size: 12px;
+  fill: rgba(255, 255, 255, 0.55);
+}
+
+.marks .markDot {
+  fill: rgba(255, 255, 255, 0.88);
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 2;
+}
+
+.marks .markRing {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 2;
+}
+
+.stats {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.kpiLabel {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.kpiValue {
+  font-size: 34px;
+  font-weight: 780;
+  letter-spacing: -0.03em;
+  margin-top: 4px;
+}
+
+.kpiHint {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.rows {
+  display: grid;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rowLabel {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.rowValue {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.details {
+  border-top: 1px dashed rgba(255, 255, 255, 0.16);
+  padding-top: 10px;
+}
+
+.details summary {
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+}
+
+.crises {
+  border-top: 1px dashed rgba(255, 255, 255, 0.16);
+  padding-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.crisesTitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.crisisList {
+  display: grid;
+  gap: 8px;
+}
+
+.crisisItem {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.crisisDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  margin-top: 4px;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+
+.crisisName {
+  font-size: 13px;
+}
+
+.crisisMeta {
+  grid-column: 2 / span 2;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+}
+
+.crisisPct {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.status {
+  margin-top: 12px;
+  min-height: 20px;
+  font-size: 13px;
+}
+
+.footer {
+  margin-top: 14px;
+  font-size: 12px;
+}
+
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}

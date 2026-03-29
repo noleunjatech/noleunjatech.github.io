@@ -1,0 +1,25 @@
+{
+  "name": "S&P 500 Drawdown Gauge",
+  "short_name": "SPX Gauge",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
+  "description": "S&P 500가 고점(ATH) 대비 얼마나 하락했는지 게이지로 보여줍니다.",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
+
