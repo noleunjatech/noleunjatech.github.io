@@ -1,24 +1,39 @@
 const SNAPSHOT_KEY = "spx_drawdown_v1";
 const CRISIS_KEY = "spx_crisis_drawdowns_v1";
+const FNG_KEY = "cnn_fng_v1";
 
 const ui = {
   refreshBtn: document.getElementById("refreshBtn"),
   installBtn: document.getElementById("installBtn"),
   status: document.getElementById("status"),
-  crisisList: document.getElementById("crisisList"),
+
   dropPct: document.getElementById("dropPct"),
   dropPts: document.getElementById("dropPts"),
   currentVal: document.getElementById("currentVal"),
   athVal: document.getElementById("athVal"),
   asofVal: document.getElementById("asofVal"),
   updatedVal: document.getElementById("updatedVal"),
-  gauge: {
-    arc: document.getElementById("gaugeArc"),
-    value: document.getElementById("gaugeValue"),
-    maxLabel: document.getElementById("gaugeMaxLabel"),
-    needle: document.getElementById("gaugeNeedle"),
+  crisisList: document.getElementById("crisisList"),
+
+  spxGauge: {
+    arc: document.getElementById("spxGaugeArc"),
+    value: document.getElementById("spxGaugeValue"),
+    needle: document.getElementById("spxGaugeNeedle"),
     marks: document.getElementById("crisisMarks"),
   },
+
+  fngGauge: {
+    arc: document.getElementById("fngGaugeArc"),
+    value: document.getElementById("fngGaugeValue"),
+    label: document.getElementById("fngGaugeLabel"),
+    needle: document.getElementById("fngGaugeNeedle"),
+  },
+  fngScoreKpi: document.getElementById("fngScoreKpi"),
+  fngRatingKpi: document.getElementById("fngRatingKpi"),
+  fngScoreRow: document.getElementById("fngScoreRow"),
+  fngRatingRow: document.getElementById("fngRatingRow"),
+  fngAsOfRow: document.getElementById("fngAsOfRow"),
+  fngUpdatedRow: document.getElementById("fngUpdatedRow"),
 };
 
 const fmt = {
@@ -28,16 +43,6 @@ const fmt = {
       maximumFractionDigits: digits,
       minimumFractionDigits: digits,
     }).format(value);
-  },
-  percent(value, digits = 2) {
-    if (!Number.isFinite(value)) return "--%";
-    return `${fmt.number(value, digits)}%`;
-  },
-  drawdownPercent(value, digits = 2) {
-    if (!Number.isFinite(value)) return "--%";
-    const abs = Math.abs(value);
-    if (abs < 1e-9) return `${fmt.number(0, digits)}%`;
-    return `-${fmt.number(abs, digits)}%`;
   },
   dt(value) {
     try {
@@ -51,6 +56,12 @@ const fmt = {
     } catch {
       return "--";
     }
+  },
+  drawdownPercent(value, digits = 2) {
+    if (!Number.isFinite(value)) return "--%";
+    const abs = Math.abs(value);
+    if (abs < 1e-9) return `${fmt.number(0, digits)}%`;
+    return `-${fmt.number(abs, digits)}%`;
   },
 };
 
@@ -73,20 +84,6 @@ function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
 }
 
-function renderGauge({ dropPct }) {
-  const max = 100;
-  ui.gauge.maxLabel.textContent = "100%";
-
-  const normalized = clamp((dropPct ?? 0) / max, 0, 1);
-  const arcLen = ui.gauge.arc.getTotalLength();
-  ui.gauge.arc.style.strokeDasharray = `${arcLen}`;
-  ui.gauge.arc.style.strokeDashoffset = `${arcLen * (1 - normalized)}`;
-
-  const deg = -90 + normalized * 180;
-  ui.gauge.needle.setAttribute("transform", `translate(160 160) rotate(${deg})`);
-  ui.gauge.value.textContent = fmt.drawdownPercent(dropPct, 2);
-}
-
 function setCache(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -103,6 +100,21 @@ function getCache(key) {
   } catch {
     return null;
   }
+}
+
+function renderArc(arcEl, normalized) {
+  if (!arcEl) return;
+  const n = clamp(normalized, 0, 1);
+  const arcLen = arcEl.getTotalLength();
+  arcEl.style.strokeDasharray = `${arcLen}`;
+  arcEl.style.strokeDashoffset = `${arcLen * (1 - n)}`;
+}
+
+function renderNeedle(needleEl, normalized) {
+  if (!needleEl) return;
+  const n = clamp(normalized, 0, 1);
+  const deg = -90 + n * 180;
+  needleEl.setAttribute("transform", `translate(160 160) rotate(${deg})`);
 }
 
 function extractJsonText(maybeWrappedText) {
@@ -195,8 +207,8 @@ function parseYahooChartSeries(text) {
   if (points.length === 0) throw new Error("유효한 가격 데이터를 찾지 못했습니다.");
 
   const metaPrice = result?.meta?.regularMarketPrice;
-  const metaDayHigh = result?.meta?.regularMarketDayHigh;
   const metaTime = result?.meta?.regularMarketTime;
+  const metaDayHigh = result?.meta?.regularMarketDayHigh;
   const currentFromMeta =
     Number.isFinite(metaPrice) && Number.isFinite(metaTime)
       ? {
@@ -397,7 +409,7 @@ function renderCrisisList(items) {
 }
 
 function clearSvgChildren(node) {
-  while (node.firstChild) node.removeChild(node.firstChild);
+  while (node?.firstChild) node.removeChild(node.firstChild);
 }
 
 function crisisTieReducedForMarks(items) {
@@ -418,8 +430,8 @@ function crisisTieReducedForMarks(items) {
 }
 
 function renderCrisisMarks(items) {
-  if (!ui.gauge.marks) return;
-  clearSvgChildren(ui.gauge.marks);
+  if (!ui.spxGauge.marks) return;
+  clearSvgChildren(ui.spxGauge.marks);
   if (!items || items.length === 0) return;
 
   const reduced = crisisTieReducedForMarks(items);
@@ -453,13 +465,13 @@ function renderCrisisMarks(items) {
     ring.appendChild(title.cloneNode(true));
     dot.appendChild(title);
 
-    ui.gauge.marks.appendChild(ring);
-    ui.gauge.marks.appendChild(dot);
+    ui.spxGauge.marks.appendChild(ring);
+    ui.spxGauge.marks.appendChild(dot);
   });
 }
 
-function renderSnapshot(snapshot, { fromCache } = { fromCache: false }) {
-  const { current, ath, computed, updatedAt, source } = snapshot;
+function renderSpxSnapshot(snapshot, { fromCache } = { fromCache: false }) {
+  const { current, ath, computed, updatedAt } = snapshot;
 
   ui.dropPct.textContent = fmt.drawdownPercent(computed.dropPct, 2);
   ui.dropPts.textContent = `${fmt.number(computed.dropPts, 2)} pt`;
@@ -468,8 +480,68 @@ function renderSnapshot(snapshot, { fromCache } = { fromCache: false }) {
   ui.asofVal.textContent = current.date;
   ui.updatedVal.textContent = `${fmt.dt(updatedAt)}${fromCache ? " (캐시)" : ""}`;
 
-  renderGauge({ dropPct: computed.dropPct });
-  setStatus(source ? `소스: ${source}` : "");
+  const normalized = clamp((computed.dropPct ?? 0) / 100, 0, 1);
+  renderArc(ui.spxGauge.arc, normalized);
+  renderNeedle(ui.spxGauge.needle, normalized);
+  ui.spxGauge.value.textContent = fmt.drawdownPercent(computed.dropPct, 2);
+}
+
+function fearGreedLabelKo(rating) {
+  const r = String(rating ?? "").toLowerCase();
+  if (r === "extreme fear") return "극도의 공포";
+  if (r === "fear") return "공포";
+  if (r === "neutral") return "중립";
+  if (r === "greed") return "탐욕";
+  if (r === "extreme greed") return "극도의 탐욕";
+  return rating || "--";
+}
+
+function renderFearGreed(snapshot, { fromCache } = { fromCache: false }) {
+  const score = snapshot.score;
+  const ratingKo = fearGreedLabelKo(snapshot.rating);
+  const asOf = snapshot.asOfMs;
+
+  const normalized = clamp((score ?? 0) / 100, 0, 1);
+  renderArc(ui.fngGauge.arc, normalized);
+  renderNeedle(ui.fngGauge.needle, normalized);
+
+  ui.fngGauge.value.textContent = Number.isFinite(score) ? fmt.number(score, 0) : "--";
+  ui.fngGauge.label.textContent = ratingKo;
+
+  ui.fngScoreKpi.textContent = Number.isFinite(score) ? fmt.number(score, 0) : "--";
+  ui.fngRatingKpi.textContent = ratingKo;
+  ui.fngScoreRow.textContent = Number.isFinite(score) ? fmt.number(score, 1) : "--";
+  ui.fngRatingRow.textContent = ratingKo;
+  ui.fngAsOfRow.textContent = asOf ? fmt.dt(asOf) : "--";
+  ui.fngUpdatedRow.textContent = `${fmt.dt(snapshot.updatedAt)}${fromCache ? " (캐시)" : ""}`;
+}
+
+async function loadFearGreed() {
+  const direct = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata";
+  const proxy = "https://r.jina.ai/http://production.dataviz.cnn.io/index/fearandgreed/graphdata";
+
+  const candidates = [proxy, direct];
+  let lastErr;
+  for (const url of candidates) {
+    try {
+      const text = await fetchText(url, { timeoutMs: 15000 });
+      const raw = extractJsonText(text);
+      const json = JSON.parse(raw);
+      const fng = json?.fear_and_greed;
+      if (!fng) throw new Error("Fear & Greed 데이터가 비어 있습니다.");
+      const score = Number.parseFloat(fng.score);
+      const rating = fng.rating;
+      const ts = fng.timestamp;
+      const asOfMs = ts ? Date.parse(ts) : null;
+
+      if (!Number.isFinite(score)) throw new Error("Fear & Greed 점수를 파싱하지 못했습니다.");
+
+      return { source: url, score, rating, asOfMs };
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr ?? new Error("Fear & Greed 데이터를 불러오지 못했습니다.");
 }
 
 function setupInstallPrompt() {
@@ -493,29 +565,18 @@ function setupInstallPrompt() {
   });
 }
 
-async function refreshSnapshot() {
-  setStatus("데이터 불러오는 중…");
-  ui.refreshBtn.disabled = true;
-
-  try {
-    const data = await loadGlobal();
-    const computed = computeDrawdown(data);
-    const snapshot = {
-      current: data.current,
-      ath: data.ath,
-      computed,
-      source: data.source,
-      updatedAt: Date.now(),
-    };
-    setCache(SNAPSHOT_KEY, snapshot);
-    renderSnapshot(snapshot, { fromCache: false });
-    setStatus("");
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    setStatus(`실패: ${msg}`);
-  } finally {
-    ui.refreshBtn.disabled = false;
-  }
+async function refreshSpxSnapshot() {
+  const data = await loadGlobal();
+  const computed = computeDrawdown(data);
+  const snapshot = {
+    current: data.current,
+    ath: data.ath,
+    computed,
+    source: data.source,
+    updatedAt: Date.now(),
+  };
+  setCache(SNAPSHOT_KEY, snapshot);
+  renderSpxSnapshot(snapshot, { fromCache: false });
 }
 
 async function refreshCrises() {
@@ -548,6 +609,32 @@ async function refreshCrises() {
   }
 }
 
+async function refreshFearGreed() {
+  const data = await loadFearGreed();
+  const snapshot = {
+    score: data.score,
+    rating: data.rating,
+    asOfMs: data.asOfMs,
+    source: data.source,
+    updatedAt: Date.now(),
+  };
+  setCache(FNG_KEY, snapshot);
+  renderFearGreed(snapshot, { fromCache: false });
+}
+
+async function refreshAll() {
+  setStatus("데이터 불러오는 중…");
+  ui.refreshBtn.disabled = true;
+
+  const results = await Promise.allSettled([refreshSpxSnapshot(), refreshFearGreed()]);
+  const errors = results
+    .filter((r) => r.status === "rejected")
+    .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)));
+
+  setStatus(errors.length ? `실패: ${errors.join(" | ")}` : "");
+  ui.refreshBtn.disabled = false;
+}
+
 async function init() {
   setupInstallPrompt();
 
@@ -565,18 +652,27 @@ async function init() {
       .catch(() => {});
   }
 
-  const cached = getCache(SNAPSHOT_KEY);
-  if (cached?.computed?.dropPct != null) {
-    renderSnapshot(cached, { fromCache: true });
+  const cachedSpx = getCache(SNAPSHOT_KEY);
+  if (cachedSpx?.computed?.dropPct != null) {
+    renderSpxSnapshot(cachedSpx, { fromCache: true });
   } else {
-    renderGauge({ dropPct: 0 });
+    renderArc(ui.spxGauge.arc, 0);
+    renderNeedle(ui.spxGauge.needle, 0);
+  }
+
+  const cachedFng = getCache(FNG_KEY);
+  if (cachedFng?.score != null) {
+    renderFearGreed(cachedFng, { fromCache: true });
+  } else {
+    renderArc(ui.fngGauge.arc, 0);
+    renderNeedle(ui.fngGauge.needle, 0);
   }
 
   ui.refreshBtn.addEventListener("click", async () => {
-    await refreshSnapshot();
+    await refreshAll();
   });
 
-  await Promise.all([refreshSnapshot(), refreshCrises()]);
+  await Promise.all([refreshAll(), refreshCrises()]);
 }
 
 init();

@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v10";
+const CACHE_VERSION = "v13";
 const CACHE_NAME = `spx-gauge-${CACHE_VERSION}`;
 
 const PRECACHE = [
@@ -50,7 +50,9 @@ self.addEventListener("fetch", (event) => {
         const cached = await cache.match("./index.html");
         try {
           const fresh = await fetch(req);
-          cache.put("./index.html", fresh.clone());
+          if (fresh.ok) {
+            cache.put("./index.html", fresh.clone());
+          }
           return fresh;
         } catch {
           return cached || new Response("Offline", { status: 200 });
@@ -66,7 +68,9 @@ self.addEventListener("fetch", (event) => {
         const cache = await caches.open(CACHE_NAME);
         try {
           const fresh = await fetch(req);
-          cache.put(req, fresh.clone());
+          if (fresh.ok) {
+            cache.put(req, fresh.clone());
+          }
           return fresh;
         } catch {
           const cached = await cache.match(req);
@@ -83,7 +87,9 @@ self.addEventListener("fetch", (event) => {
       const cached = await cache.match(req);
       const fetchPromise = fetch(req)
         .then((res) => {
-          cache.put(req, res.clone());
+          if (res.ok) {
+            cache.put(req, res.clone());
+          }
           return res;
         })
         .catch(() => null);
