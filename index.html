@@ -20,13 +20,43 @@
         <p class="sub">S&amp;P 500 고점 대비 하락률 · CNN Fear &amp; Greed</p>
       </div>
       <div class="actions">
-        <button id="refreshBtn" class="btn" type="button">새로고침</button>
+        <button id="refreshBtn" class="btn btnIcon" type="button" aria-label="새로고침" title="새로고침">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+            <polyline
+              points="23 4 23 10 17 10"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <polyline
+              points="1 20 1 14 7 14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10M1 14l5.36 5.36A9 9 0 0 0 20.49 15"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
         <button id="installBtn" class="btn btnPrimary" type="button" hidden>설치</button>
       </div>
     </header>
 
     <section class="card">
-      <h2 class="cardTitle">S&amp;P 500 고점 대비 하락률</h2>
+      <div class="cardHeader">
+        <h2 class="cardTitle">S&amp;P 500 고점 대비 하락률</h2>
+        <div id="avg10yBadge" class="cardBadge" aria-label="S&P 500 10년 평균 하락률">10년 평균 --%</div>
+      </div>
       <div class="grid">
         <div class="gauge">
           <svg id="spxGaugeSvg" viewBox="0 0 320 200" aria-label="S&P 500 하락률 게이지" role="img">

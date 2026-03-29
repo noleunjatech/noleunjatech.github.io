@@ -7,6 +7,7 @@ const ui = {
   installBtn: document.getElementById("installBtn"),
   status: document.getElementById("status"),
 
+  avg10yBadge: document.getElementById("avg10yBadge"),
   dropPct: document.getElementById("dropPct"),
   dropPts: document.getElementById("dropPts"),
   currentVal: document.getElementById("currentVal"),
@@ -171,6 +172,47 @@ function pointLow(p) {
   return Infinity;
 }
 
+function pointClose(p) {
+  if (Number.isFinite(p.close)) return p.close;
+  if (Number.isFinite(p.high)) return p.high;
+  if (Number.isFinite(p.low)) return p.low;
+  return NaN;
+}
+
+function computeAvgDrawdownPctOverYears(points, years) {
+  if (!Array.isArray(points) || points.length === 0) return null;
+  const y = Number.isFinite(years) && years > 0 ? years : 10;
+
+  const lastTs = points[points.length - 1]?.ts;
+  if (!Number.isFinite(lastTs)) return null;
+
+  const cutoffDate = new Date(lastTs * 1000);
+  cutoffDate.setUTCFullYear(cutoffDate.getUTCFullYear() - y);
+  const cutoffTs = Math.floor(cutoffDate.getTime() / 1000);
+
+  let peakHigh = pointHigh(points[0]);
+  let sum = 0;
+  let count = 0;
+
+  for (const p of points) {
+    const h = pointHigh(p);
+    if (Number.isFinite(h) && h > peakHigh) peakHigh = h;
+
+    if (!Number.isFinite(p.ts) || p.ts < cutoffTs) continue;
+
+    const c = pointClose(p);
+    if (!Number.isFinite(c) || !Number.isFinite(peakHigh) || peakHigh <= 0) continue;
+
+    const dd = ((peakHigh - c) / peakHigh) * 100;
+    if (!Number.isFinite(dd)) continue;
+
+    sum += Math.max(0, dd);
+    count += 1;
+  }
+
+  return count ? sum / count : null;
+}
+
 function parseYahooChartSeries(text) {
   const raw = extractJsonText(text);
   const json = JSON.parse(raw);
@@ -323,7 +365,8 @@ async function loadGlobal() {
       const text = await fetchText(url);
       const { points, currentFromMeta } = parseYahooChartSeries(text);
       const parsed = computeAthAndCurrent(points, currentFromMeta);
-      return { source: url, ...parsed };
+      const avg10yDropPct = computeAvgDrawdownPctOverYears(points, 10);
+      return { source: url, avg10yDropPct, ...parsed };
     } catch (e) {
       lastErr = e;
     }
@@ -473,6 +516,13 @@ function renderCrisisMarks(items) {
 function renderSpxSnapshot(snapshot, { fromCache } = { fromCache: false }) {
   const { current, ath, computed, updatedAt } = snapshot;
 
+  if (ui.avg10yBadge) {
+    const avg = snapshot?.avg10yDropPct;
+    const pct = Number.isFinite(avg) ? fmt.drawdownPercent(avg, 2) : "--%";
+    ui.avg10yBadge.textContent = `10년 평균 ${pct}`;
+    ui.avg10yBadge.title = "최근 10년(일간) 평균: 당시의 최고점 대비 종가 하락률";
+  }
+
   ui.dropPct.textContent = fmt.drawdownPercent(computed.dropPct, 2);
   ui.dropPts.textContent = `${fmt.number(computed.dropPts, 2)} pt`;
   ui.currentVal.textContent = `${fmt.number(current.close, 2)} (${current.date})`;
@@ -571,6 +621,7 @@ async function refreshSpxSnapshot() {
   const snapshot = {
     current: data.current,
     ath: data.ath,
+    avg10yDropPct: data.avg10yDropPct,
     computed,
     source: data.source,
     updatedAt: Date.now(),

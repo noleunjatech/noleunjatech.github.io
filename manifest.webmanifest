@@ -1,12 +1,12 @@
 {
-  "name": "S&P 500 Drawdown Gauge",
-  "short_name": "SPX Gauge",
+  "name": "노른자 인베스트",
+  "short_name": "Noleunja Invest",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0b1020",
   "theme_color": "#0b1020",
-  "description": "Shows S&P 500 drawdown from all-time high (ATH) as a gauge.",
+  "description": "S&P 500 하락율과 CNN Fear & Greed Index",
   "icons": [
     {
       "src": "./icons/icon.svg",
