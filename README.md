@@ -15,6 +15,10 @@ cd C:\Users\slim8\Projects\snp500
 node .\server.mjs
 ```
 
+## Google Analytics (GA4)
+
+- `index.html` 의 `<meta name="google-analytics-id" content="...">` 값을 본인 GA4 Measurement ID (`G-...`)로 변경하세요.
+
 그 다음 브라우저에서 `http://localhost:5173/`로 접속하세요.
 
 ## 데이터 소스
@@ -32,4 +36,3 @@ node .\server.mjs
 3) `main` 브랜치에 push 하면 자동으로 배포됩니다.
 
 커스텀 도메인 사용 시 루트의 `CNAME` 파일을 포함합니다.
-
