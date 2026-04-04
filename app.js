@@ -512,6 +512,10 @@ async function fetchText(url, { timeoutMs = 12000 } = {}) {
   }
 }
 
+function allOriginsRaw(url) {
+  return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+}
+
 async function loadGlobal() {
   const chart =
     "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?range=max&interval=1d&includeAdjustedClose=true";
@@ -520,8 +524,11 @@ async function loadGlobal() {
 
   const jina = `https://r.jina.ai/http://${chart.replace(/^https?:\/\//, "")}`;
   const jinaAlt = `https://r.jina.ai/http://${chartAlt.replace(/^https?:\/\//, "")}`;
+  const ao = allOriginsRaw(chart);
+  const aoAlt = allOriginsRaw(chartAlt);
 
-  const candidates = [chart, chartAlt, jina, jinaAlt];
+  // Prefer CORS-friendly proxies first to avoid browser fetch failures (net::ERR_FAILED 200 (OK)).
+  const candidates = [jina, jinaAlt, ao, aoAlt, chart, chartAlt];
   let lastErr;
   for (const url of candidates) {
     try {
@@ -545,8 +552,11 @@ async function loadCrisis(crisis) {
   const alt = `https://query2.finance.yahoo.com/v8/finance/chart/%5EGSPC?interval=1d&includeAdjustedClose=true&period1=${period1}&period2=${period2}`;
   const jina = `https://r.jina.ai/http://${base.replace(/^https?:\/\//, "")}`;
   const jinaAlt = `https://r.jina.ai/http://${alt.replace(/^https?:\/\//, "")}`;
+  const ao = allOriginsRaw(base);
+  const aoAlt = allOriginsRaw(alt);
 
-  const candidates = [base, alt, jina, jinaAlt];
+  // Prefer CORS-friendly proxies first to avoid browser fetch failures (net::ERR_FAILED 200 (OK)).
+  const candidates = [jina, jinaAlt, ao, aoAlt, base, alt];
   let lastErr;
   for (const url of candidates) {
     try {
@@ -575,8 +585,11 @@ async function loadEtfQuotes(symbols) {
   const alt = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${joined}`;
   const jina = `https://r.jina.ai/http://${base.replace(/^https?:\/\//, "")}`;
   const jinaAlt = `https://r.jina.ai/http://${alt.replace(/^https?:\/\//, "")}`;
+  const ao = allOriginsRaw(base);
+  const aoAlt = allOriginsRaw(alt);
 
-  const candidates = [base, alt, jina, jinaAlt];
+  // Prefer CORS-friendly proxies first to avoid browser fetch failures (net::ERR_FAILED 200 (OK)).
+  const candidates = [jina, jinaAlt, ao, aoAlt, base, alt];
   let lastErr;
   for (const url of candidates) {
     try {
@@ -725,8 +738,11 @@ async function loadEtfQuotesViaChart(symbols) {
     const alt = `https://query2.finance.yahoo.com/v8/finance/chart/${s}?range=5d&interval=1d&includeAdjustedClose=true`;
     const jina = `https://r.jina.ai/http://${base.replace(/^https?:\/\//, "")}`;
     const jinaAlt = `https://r.jina.ai/http://${alt.replace(/^https?:\/\//, "")}`;
+    const ao = allOriginsRaw(base);
+    const aoAlt = allOriginsRaw(alt);
 
-    const candidates = [base, alt, jina, jinaAlt];
+    // Prefer CORS-friendly proxies first to avoid browser fetch failures (net::ERR_FAILED 200 (OK)).
+    const candidates = [jina, jinaAlt, ao, aoAlt, base, alt];
     let lastErr;
     for (const url of candidates) {
       try {
